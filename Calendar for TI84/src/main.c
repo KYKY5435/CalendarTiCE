@@ -3,7 +3,6 @@
 #include <ti/getcsc.h>
 #include <graphx.h>
 #include <keypadc.h>
-#include <fileioc.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -11,74 +10,9 @@
 #include <sys/timers.h>
 #include <sys/rtc.h>
 
-const char letterMap[] = {
-//    [sk_Mode  ] = '\e',
-    [sk_Del   ] = '\b',
-    [sk_Clear ] = '\r',
-    [sk_Math  ] = 'A',
-    [sk_Apps  ] = 'B',
-    [sk_Prgm  ] = 'C',
-    [sk_Recip ] = 'D',
-    [sk_Sin   ] = 'E',
-    [sk_Cos   ] = 'F',
-    [sk_Tan   ] = 'G',
-    [sk_Power ] = 'H',
-    [sk_Square] = 'I',
-    [sk_Comma ] = 'J',
-    [sk_LParen] = 'K',
-    [sk_RParen] = 'L',
-    [sk_Div   ] = 'M',
-    [sk_Log   ] = 'N',
-    [sk_7     ] = 'O',
-    [sk_8     ] = 'P',
-    [sk_9     ] = 'Q',
-    [sk_Mul   ] = 'R',
-    [sk_Ln    ] = 'S',
-    [sk_4     ] = 'T',
-    [sk_5     ] = 'U',
-    [sk_6     ] = 'V',
-    [sk_Sub   ] = 'W',
-    [sk_Store ] = 'X',
-    [sk_1     ] = 'Y',
-    [sk_2     ] = 'Z',
-    [sk_Add   ] = '"',
-    [sk_0     ] = ' ',
-    [sk_DecPnt] = ':',
-    [sk_Chs   ] = '?',
-    [sk_Enter ] = '\n',
-};
-const char numberMap[] = {
-//    [sk_Mode  ] = '\e',
-    [sk_Del   ] = '\b',
-    [sk_Clear ] = '\r',
-    [sk_7     ] = '7',
-    [sk_8     ] = '8',
-    [sk_9     ] = '9',
-    [sk_4     ] = '4',
-    [sk_5     ] = '5',
-    [sk_6     ] = '6',
-    [sk_1     ] = '1',
-    [sk_2     ] = '2',
-    [sk_0     ] = '0',
-    [sk_DecPnt] = '.',
-    [sk_Chs   ] = '-',
-    [sk_Enter ] = '\n',
-    [sk_Add   ] = '+',
-    [sk_Sub   ] = '-',
-};
+uint8_t key = 0;
 
-uint8_t key;
-char bufferText[50];
-
-int save_id = 0;
-int save_status = 0;
-int saveInt;
-char saveStr[50];
-uint8_t save_file;
-
-char save[21][2][21];
-
-int date[3];
+int date[3] = {1, 1, 25};
 
 const uint8_t longDates[] = {1, 3, 5, 7, 8, 10, 12};
 const uint8_t shortDates[] = {4, 6, 9, 11};
@@ -90,11 +24,8 @@ void gfx_PrintIntXY(int num, int x, int y, int length) {
 
 int Start();
 void End();
-int Letter_Text();
-int Number_Text();
 bool Calander();
 void Draw(int year, int month);
-void Reminders();
 
 int main(void) {
     
@@ -122,7 +53,6 @@ int main(void) {
     
 void End(void)
 {
-    ti_Close(save_file);
     gfx_palette[0] = gfx_RGBTo1555(0, 0, 0);
     gfx_FillScreen(0);
     gfx_End();
@@ -157,7 +87,7 @@ bool Calander() {
     uint8_t date2 = 0;
     uint16_t date3 = 0;
         
-    int selectWeek = -1;
+    int selectWeek = 1;
     int selectDay = 1;
         
     boot_GetDate(&date1, &date2, &date3); //day month year
@@ -261,29 +191,6 @@ bool Calander() {
     return true;
 }
 
-void Reminders() {
-    save_file = ti_Open("Calendar", "r+");
-    if (save_file == 0) {
-        save_file = ti_Open("Calendar", "a+");
-        char temp_save[21][2][21];
-        for (size_t i = 0; i < sizeof(temp_save)/sizeof(temp_save[0]); i++) {
-			strcpy(temp_save[i][0],"0");
-			strcpy(temp_save[i][0],"No");
-        }
-        ti_Write(temp_save, sizeof(temp_save), 1, save_file);
-    }
-    //{time since 2000, details}
-    ti_Close(save_file);
-    
-	save_file = ti_Open("Calendar", "r");
-    if (save_file) {
-        ti_Read(save, sizeof(save), 1, save_file);
-        ti_Close(save_file);
-    }
-    
-    //atoi()
-}
-
 void Draw(int year, int month) {
 
     gfx_SetDrawBuffer();
@@ -308,8 +215,8 @@ void Draw(int year, int month) {
     gfx_PrintStringXY(" ",0,24);
     gfx_PrintInt(rtc_Days,2);
     
-    int dayOffset;
-    int daysInMonth;
+    int dayOffset = 0;
+    int daysInMonth = 30;
     
     int drawWeek = -1;
     int drawDay = 1;
@@ -397,7 +304,7 @@ void Draw(int year, int month) {
     
     while (drawDay != daysInMonth + 1) {
         dayOffset = dayOfWeek(year, month, drawDay);
-        if (dayOffset == 1) {
+        if (dayOffset == 1 && drawDay != 1) {
             drawWeek++;
         }
         if (drawDay == date1 && month == date2 && year == date3) {
@@ -417,107 +324,4 @@ void Draw(int year, int month) {
     //gfx_SetColor(1);
     //gfx_Rectangle(106 + 18 * (dayOffset - 1) - 2, 72 + 22 * selectWeek - 3, 19, 13);
         
-}
-
-int Request_Text() {
-    char bufferDisplay[50];
-    size_t i = 0;
-    uint8_t command = 0;
-    
-    while (command != '\n' && command != '\e') {
-            key = os_GetCSC();
-            command = key < sizeof(letterMap) / sizeof(*letterMap) ? letterMap[key] : '\0';
-            
-            if (command != '\0') {
-                switch (command) {
-                    case '\n':
-                        break;
-                    case '\r': //clear
-                        gfx_ZeroScreen();
-                        bufferText[0] = '\0';
-                        strcpy(bufferDisplay,bufferText);
-                        i = 0;
-                        bufferDisplay[i] = '\0';
-                        gfx_PrintStringXY(bufferDisplay,1,1);
-                        break;
-                    case '\b': //delete
-                        if (i != 0) {
-                            gfx_ZeroScreen();
-                            	i--;
-                            bufferText[i] = '\0';
-                            strcpy(bufferDisplay,bufferText);
-                            gfx_PrintStringXY(bufferDisplay,1,1);
-                        }
-                        break;            
-                    default:
-                        if (i < sizeof(bufferText) - 2) {
-                            bufferText[i] = command;
-                            bufferText[i+1] = '\0';
-                            strcpy(bufferDisplay,bufferText);
-                            i++;
-                        }
-                        //bufferDisplay[i+1] = '\0';
-                        gfx_PrintStringXY(bufferDisplay,1,1);
-                        gfx_PrintInt(i,4);
-                        break;
-                }
-            }
-        }
-        
-    if (i <= 0) {
-        return 0;
-    } else {
-        return 1;
-    }
-}
-int Number_Text() {
-    char bufferDisplay[50];
-    size_t i = 0;
-    uint8_t command = 0;
-    
-    while (command != '\n' && command != '\e') {
-            key = os_GetCSC();
-            command = key < sizeof(numberMap) / sizeof(*numberMap) ? numberMap[key] : '\0';
-            
-            if (command != '\0') {
-                switch (command) {
-                    case '\n':
-                        break;
-                    case '\r': //clear
-                        gfx_ZeroScreen();
-                        bufferText[0] = '\0';
-                        strcpy(bufferDisplay,bufferText);
-                        i = 0;
-                        bufferDisplay[i] = '\0';
-                        gfx_PrintStringXY(bufferDisplay,1,1);
-                        break;
-                    case '\b': //delete
-                        if (i != 0) {
-                            gfx_ZeroScreen();
-                            	i--;
-                            bufferText[i] = '\0';
-                            strcpy(bufferDisplay,bufferText);
-                            gfx_PrintStringXY(bufferDisplay,1,1);
-                        }
-                        break;            
-                    default:
-                        if (i < sizeof(bufferText) - 2) {
-                            bufferText[i] = command;
-                            bufferText[i+1] = '\0';
-                            strcpy(bufferDisplay,bufferText);
-                            i++;
-                        }
-                        //bufferDisplay[i+1] = '\0';
-                        gfx_PrintStringXY(bufferDisplay,1,1);
-                        gfx_PrintInt(i,4);
-                        break;
-                }
-            }
-        }
-        
-    if (i <= 0) {
-        return 0;
-    } else {
-        return 1;
-    }
 }
